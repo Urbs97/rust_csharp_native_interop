@@ -6,17 +6,20 @@ namespace NativeCSharp;
 
 public static class NativeExports
 {
+    private static readonly Random _random = new();
+    
     [UnmanagedCallersOnly(EntryPoint = nameof(GetInt))]
     public static int GetInt()
     {
-        Console.WriteLine($"{nameof(GetInt)} called in C# native code");
-        return 42;
+        int randomValue = _random.Next(100);
+        Console.WriteLine($"[.NET]: {nameof(GetInt)} called with a random value of '{randomValue}'.");
+        return randomValue;
     }
 
     [UnmanagedCallersOnly(EntryPoint = nameof(GetString))]
     public static IntPtr GetString()
     {
-        Console.WriteLine($"{nameof(GetString)} called in C# native code");
+        Console.WriteLine($"[.NET]: {nameof(GetString)} called.");
         const string managedString = "This is a test string from C#.";
 
         // Convert the managed string to a UTF-8 encoded byte array
@@ -37,14 +40,14 @@ public static class NativeExports
     [UnmanagedCallersOnly(EntryPoint = nameof(FreeString))]
     public static void FreeString(IntPtr ptr)
     {
-        Console.WriteLine($"String free: {Marshal.PtrToStringAnsi(ptr)}");
+        Console.WriteLine($"[.NET]: String free called: '{Marshal.PtrToStringAnsi(ptr)}'.");
         Marshal.FreeHGlobal(ptr);
     }
 
     [UnmanagedCallersOnly(EntryPoint = nameof(Shutdown))]
     public static void Shutdown()
     {
-        Console.WriteLine("Calling Shutdown in C#");
+        Console.WriteLine("[.NET]: Shutting down.");
 
         GC.Collect();
         GC.WaitForPendingFinalizers();

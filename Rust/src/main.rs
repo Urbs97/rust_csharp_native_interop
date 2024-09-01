@@ -1,43 +1,36 @@
-use libloading::{Library, Symbol};
-use std::ffi::CStr;
-use std::os::raw::c_char;
+mod bindings;
+
+use libloading::Library;
+use bindings::LibraryBindings;
 
 fn main() -> Result<(), String> {
     unsafe {
+        let lib_name = if cfg!(target_os = "linux") {
+            "NativeCSharp.so"
+        } else if cfg!(target_os = "windows") {
+            "NativeCSharp.dll"
+        } else {
+            return Err("Unsupported operating system!".to_string());
+        };
+
         // Load the shared library
-        let lib = Library::new("../NativeCSharp/bin/Release/linux-x64/publish/NativeCSharp.so")
+        let lib = Library::new(lib_name)
             .map_err(|e| e.to_string())?;
+        let bindings = LibraryBindings::new(&lib)?;
 
-        // Load and call the GetInt function
-        let get_int: Symbol<unsafe extern "C" fn() -> i32> = lib.get(b"GetInt").map_err(|e| e.to_string())?;
-        let result = get_int();
-        println!("Result from C# GetInt: {}", result);
+        // Use binding struct to call functions
+        let int_value = bindings.get_int();
+        println!("[RUST]: Integer value from native .NET: '{}'.", int_value);
 
-        // Load and call the GetString function
-        let get_string: Symbol<unsafe extern "C" fn() -> *const c_char> = lib.get(b"GetString").map_err(|e| e.to_string())?;
-        let c_string_ptr = get_string();
+        let string_value = bindings.get_string()?;
+        println!("[RUST]: String value (now owned by rust code) from native .NET: '{}'.", string_value);
 
-        if c_string_ptr.is_null() {
-            return Err("Received a null pointer from C# GetString".into());
-        }
-
-        // Convert the C string to a Rust String
-        let c_str = CStr::from_ptr(c_string_ptr);
-        let rust_string = c_str.to_string_lossy().into_owned();
-
-        println!("Received string from C#: {}", rust_string);
-
-        let free_string: Symbol<unsafe extern "C" fn(*const c_char)> = lib.get(b"FreeString").map_err(|e| e.to_string())?;
-        free_string(c_string_ptr);
-
-        // gracefully shutting down the library which includes the .net runtime running in the background
-        // not doing this results in a segfault when rust drops the library.
-        let shutdown: Symbol<unsafe extern "C" fn()> = lib.get(b"Shutdown").map_err(|e| e.to_string())?;
-        shutdown();
-
-        println!("Leaving unsafe block!");
+        // Calling shutdown is needed otherwise the .NET runtime will cause a segmentation fault when dropped because it's being interrupted.
+        // You can test this behaviour by commenting the following line out
+        bindings.shutdown();
+        println!("[RUST]: The native .NET library is now going to be dropped.");
     }
 
-    println!("Left unsafe block!");
+    println!("[RUST]: The native .NET library has successfully been dropped.");
     Ok(())
 }
